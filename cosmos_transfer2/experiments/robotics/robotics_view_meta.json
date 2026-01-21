@@ -1,0 +1,7 @@
+{
+  "cam_high": "The video is captured from a camera mounted above the robot workspace, providing a top-down view of the bimanual robot and table.",
+  "cam_left_wrist": "The video is captured from a camera mounted on the left robot arm wrist, showing the left gripper's perspective.",
+  "cam_right_wrist": "The video is captured from a camera mounted on the right robot arm wrist, showing the right gripper's perspective.",
+  "cam_waist_left": "The video is captured from a camera on the left side of the robot base, showing the left side of the workspace.",
+  "cam_waist_right": "The video is captured from a camera on the right side of the robot base, showing the right side of the workspace."
+}

@@ -60,7 +60,7 @@ robotics_multiview_edge_posttrain = dict(
         name="robotics_edge_posttrain_480p_10fps",
     ),
     checkpoint=dict(
-        save_iter=500,
+        save_iter=200,  # More frequent checkpoints for smaller dataset (catch optimal before overfitting)
         load_path=_CHECKPOINT_PATH,
         load_training_state=False,
         strict_resume=False,
@@ -87,8 +87,9 @@ robotics_multiview_edge_posttrain = dict(
             heart_beat=dict(save_s3=False),
             iter_speed=dict(hit_thres=100, save_s3=False),
             device_monitor=dict(save_s3=False),
-            every_n_sample_reg=dict(every_n=500, save_s3=False),
-            every_n_sample_ema=dict(every_n=500, save_s3=False),
+            # Generate validation samples every 200 iters (matches checkpoint frequency)
+            every_n_sample_reg=dict(every_n=200, save_s3=False),
+            every_n_sample_ema=dict(every_n=200, save_s3=False),
             wandb=dict(save_s3=False),
             wandb_10x=dict(save_s3=False),
             dataloader_speed=dict(save_s3=False),
@@ -96,9 +97,10 @@ robotics_multiview_edge_posttrain = dict(
         ),
     ),
     model_parallel=dict(
-        # context_parallel_size=1 for data parallelism (recommended for 29-frame videos)
-        # Set higher (e.g., 8) for very long sequences that don't fit in single GPU memory
-        context_parallel_size=1,
+        # context_parallel_size=2 for 480p (NVIDIA used 2 for 480p AV, 8 for 720p)
+        # Splits 24 latent frames across 2 GPUs (12 per GPU)
+        # Remaining 6 GPUs used for data parallelism (effective batch = 4)
+        context_parallel_size=2,
     ),
 )
 

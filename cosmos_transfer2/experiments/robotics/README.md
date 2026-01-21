@@ -47,21 +47,22 @@ s3://synphony-mv-rnd/dyna_posttrain/    (mount at /mnt/s3_data/dyna_posttrain/)
 | Resolution | 832×480 (width × height) |
 | Frame rate | 10 fps |
 | Codec | H.264 |
-| Training samples | 29 frames per sample (~2.9 seconds) |
+| Training samples | 93 frames per sample (~9.3 seconds) |
 
 ## Training Parameters
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | Resolution | 480p (832×480) | Model adapts from 720p checkpoint |
-| Frames per sample | 29 | ~2.9 seconds at 10fps |
+| Frames per sample | 93 | ~9.3 seconds at 10fps (state_t=24) |
 | Cameras | 5 | cam_high, cam_left_wrist, cam_right_wrist, cam_waist_left, cam_waist_right |
 | Control type | Edge (Canny) | Pre-computed, preserves robot poses |
 | Caption source | cam_high only | Single caption per episode |
 | Batch size | 1 per GPU | 8 total with 8 GPUs |
 | Max iterations | 5,000 | Configurable |
-| Checkpoint interval | 500 iterations | Configurable |
-| Context parallel | 1 | Data parallel mode for 29-frame videos |
+| Checkpoint interval | 200 iterations | Frequent saves for evaluation |
+| Sample generation | Every 200 iters | Validation samples for visual eval |
+| Context parallel | 2 | Matches NVIDIA's 480p setup (12 latent frames/GPU) |
 | Train/Val split | 90/10 | Automatic, based on sorted video list |
 
 ---
@@ -197,11 +198,146 @@ outputs/robotics_edge_posttrain_480p_10fps/
 
 ## Inference After Training
 
-```bash
-python -m cosmos_transfer2.scripts.inference_multiview \
-    --checkpoint_path outputs/robotics_edge_posttrain_480p_10fps/checkpoints/iter_05000/model_ema_bf16.pt \
-    --config your_inference_config.json
+### Prepare Inference Input
+
+Create an input directory with edge control videos:
+
 ```
+inference_input/
+├── control/                   # Edge control videos (required)
+│   ├── cam_high/
+│   │   ├── test_episode_001.mp4
+│   │   └── ...
+│   ├── cam_left_wrist/
+│   ├── cam_right_wrist/
+│   ├── cam_waist_left/
+│   └── cam_waist_right/
+├── videos/                    # Original RGB videos (optional)
+│   └── ...
+└── captions/                  # Text captions (optional)
+    └── cam_high/
+        ├── test_episode_001.txt
+        └── ...
+```
+
+### Single-Shot Inference (93 frames / 9.3s)
+
+```bash
+cd /root/projects/cosmos-transfer
+
+PYTHONPATH=. torchrun --nproc_per_node=8 --master_port=12341 \
+    -m cosmos_transfer2.experiments.robotics.robotics_inference \
+    --ckpt_path outputs/robotics_edge_posttrain_480p_10fps/checkpoints/iter_001000/ \
+    --input_root /path/to/inference_input \
+    --save_root results/robotics_inference \
+    --guidance 3.0 \
+    --num_steps 35 \
+    --save_each_view
+```
+
+### Autoregressive Inference (Long Videos)
+
+For videos longer than 9.3 seconds:
+
+```bash
+PYTHONPATH=. torchrun --nproc_per_node=8 --master_port=12341 \
+    -m cosmos_transfer2.experiments.robotics.robotics_inference \
+    --ckpt_path outputs/robotics_edge_posttrain_480p_10fps/checkpoints/iter_001000/ \
+    --input_root /path/to/inference_input \
+    --save_root results/robotics_long_videos \
+    --use_autoregressive \
+    --chunk_overlap 1 \
+    --guidance 3.0 \
+    --save_each_view
+```
+
+### Inference Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--guidance` | 3.0 | Classifier-free guidance scale (higher = more prompt adherence) |
+| `--num_steps` | 35 | Diffusion sampling steps (more = better quality, slower) |
+| `--control_weight` | 1.0 | Edge control influence (1.0 = full control) |
+| `--seed` | 0 | Random seed for reproducibility |
+| `--use_autoregressive` | False | Enable for videos > 93 frames |
+| `--chunk_overlap` | 1 | Overlap frames between chunks (autoregressive) |
+
+---
+
+## Checkpoint Evaluation
+
+### Understanding Checkpoints
+
+Training saves checkpoints every 200 iterations:
+
+```
+outputs/robotics_edge_posttrain_480p_10fps/checkpoints/
+├── iter_000200/    # Early training (underfitted)
+├── iter_000400/
+├── iter_000600/
+├── iter_000800/
+├── iter_001000/    # ~3 epochs over data
+├── iter_002000/    # ~6 epochs
+├── iter_003000/    # ~9 epochs - often best quality
+├── iter_004000/    # May start overfitting
+└── iter_005000/    # Final checkpoint
+```
+
+Each checkpoint contains:
+- `model_ema_bf16.pt` - **Use this for inference** (exponential moving average weights)
+- `model_reg_bf16.pt` - Regular model weights (for comparison)
+- `training_state.pt` - Optimizer state (for resuming training)
+
+### Evaluate Multiple Checkpoints
+
+Create a test set of edge videos, then run inference on each checkpoint:
+
+```bash
+# Evaluate checkpoints 1000, 2000, 3000
+for iter in 1000 2000 3000 4000 5000; do
+    PYTHONPATH=. torchrun --nproc_per_node=8 --master_port=12341 \
+        -m cosmos_transfer2.experiments.robotics.robotics_inference \
+        --ckpt_path outputs/robotics_edge_posttrain_480p_10fps/checkpoints/iter_00${iter}/ \
+        --input_root /path/to/test_inputs \
+        --save_root results/eval_iter_${iter} \
+        --guidance 3.0 \
+        --max_samples 5
+done
+```
+
+### What to Look For
+
+| Checkpoint Stage | Typical Behavior |
+|------------------|------------------|
+| iter_200-600 | Blurry, noisy, poor structure |
+| iter_800-1500 | Improving quality, some artifacts |
+| iter_1500-3000 | **Best quality zone** - good structure, realistic textures |
+| iter_3000-5000 | May overfit - copies training data too closely |
+
+**Signs of underfitting:**
+- Blurry or noisy outputs
+- Poor edge following
+- Generic/repeated textures
+
+**Signs of overfitting:**
+- Outputs look exactly like training videos
+- Novel edge inputs produce garbage
+- Loss on validation set increases while training loss decreases
+
+### Validation Samples During Training
+
+The model automatically generates validation samples every 200 iterations:
+
+```
+outputs/robotics_edge_posttrain_480p_10fps/samples/
+├── iter_000200/
+│   ├── sample_reg_*.mp4    # Regular model samples
+│   └── sample_ema_*.mp4    # EMA model samples (usually better)
+├── iter_000400/
+└── ...
+```
+
+Watch these samples during training to pick the best checkpoint without running full inference.
 
 ---
 
@@ -267,4 +403,6 @@ huggingface-cli login --token YOUR_TOKEN
 |------|---------|
 | `robotics_dataloader.py` | Dataset and dataloader configuration |
 | `robotics_posttrain.py` | Experiment config (iterations, checkpointing, etc.) |
+| `robotics_inference.py` | Inference script for generating videos |
+| `robotics_view_meta.json` | Camera descriptions for caption prefixes |
 | `README.md` | This guide |
