@@ -13,7 +13,7 @@ For single GPU testing:
         --config=cosmos_transfer2/_src/transfer2_multiview/configs/vid2vid_transfer/config.py \
         --dryrun -- experiment=robotics_multiview_edge_posttrain
 
-Dataset structure expected at /tmp/normalized_videos/:
+Dataset structure expected at /mnt/s3_data/dyna_posttrain/:
     videos/
         cam_high/*.mp4
         cam_left_wrist/*.mp4
@@ -22,7 +22,10 @@ Dataset structure expected at /tmp/normalized_videos/:
         cam_waist_right/*.mp4
     control_input_edge/
         cam_high/*.mp4
-        ...
+        cam_left_wrist/*.mp4
+        cam_right_wrist/*.mp4
+        cam_waist_left/*.mp4
+        cam_waist_right/*.mp4
     captions/
         cam_high/*.json  (format: {"caption": "..."})
 """

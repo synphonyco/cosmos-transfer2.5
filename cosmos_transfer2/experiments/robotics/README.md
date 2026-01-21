@@ -2,6 +2,10 @@
 
 Post-training configuration for bimanual robotics videos with edge control signals.
 
+## Overview
+
+This experiment fine-tunes the Cosmos Transfer 2.5 multiview model on robotics data with 5 synchronized camera views and pre-computed Canny edge control signals.
+
 ## Dataset Structure
 
 Data stored in S3, mounted locally for training:
@@ -9,7 +13,10 @@ Data stored in S3, mounted locally for training:
 ```
 s3://YOUR_BUCKET/dyna_posttrain/    (mount at /mnt/s3_data/dyna_posttrain/)
 ├── videos/
-│   ├── cam_high/*.mp4
+│   ├── cam_high/
+│   │   ├── episode_0001.mp4
+│   │   ├── episode_0002.mp4
+│   │   └── ...
 │   ├── cam_left_wrist/*.mp4
 │   ├── cam_right_wrist/*.mp4
 │   ├── cam_waist_left/*.mp4
@@ -21,19 +28,45 @@ s3://YOUR_BUCKET/dyna_posttrain/    (mount at /mnt/s3_data/dyna_posttrain/)
 │   ├── cam_waist_left/*.mp4
 │   └── cam_waist_right/*.mp4
 └── captions/
-    └── cam_high/*.json   # Format: {"caption": "..."}
+    └── cam_high/
+        ├── episode_0001.json   # Format: {"caption": "A robot arm picking up..."}
+        └── ...
 ```
+
+**Important:**
+- Video filenames must match across all camera folders (e.g., `episode_0001.mp4` in all 5 camera dirs)
+- Control edge videos must have the same filenames as their corresponding RGB videos
+- Captions are only required for `cam_high` (used as the single caption for all views)
 
 ## Video Specifications
 
-- Resolution: 832x480 (width x height)
-- Frame rate: 10 fps
-- Codec: H.264
-- Training samples: 29 frames per sample (~2.9 seconds)
+| Spec | Value |
+|------|-------|
+| Resolution | 832×480 (width × height) |
+| Frame rate | 10 fps |
+| Codec | H.264 |
+| Training samples | 29 frames per sample (~2.9 seconds) |
 
-## Prerequisites
+## Training Parameters
 
-### 1. Mount S3 Bucket
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Resolution | 480p (832×480) | Model adapts from 720p checkpoint |
+| Frames per sample | 29 | ~2.9 seconds at 10fps |
+| Cameras | 5 | cam_high, cam_left_wrist, cam_right_wrist, cam_waist_left, cam_waist_right |
+| Control type | Edge (Canny) | Pre-computed, preserves robot poses |
+| Caption source | cam_high only | Single caption per episode |
+| Batch size | 1 per GPU | 8 total with 8 GPUs |
+| Max iterations | 5,000 | Configurable |
+| Checkpoint interval | 500 iterations | Configurable |
+| Context parallel | 1 | Data parallel mode for 29-frame videos |
+| Train/Val split | 90/10 | Automatic, based on sorted video list |
+
+---
+
+## Step-by-Step Training Guide
+
+### Step 1: Mount S3 Bucket
 
 ```bash
 # Install s3fs if needed
@@ -42,114 +75,194 @@ sudo apt-get install s3fs
 # Create mount point
 sudo mkdir -p /mnt/s3_data
 
-# Mount (adjust bucket name)
+# Mount (replace YOUR_BUCKET with your bucket name)
 s3fs YOUR_BUCKET /mnt/s3_data -o iam_role=auto -o allow_other
 
-# Verify
-ls /mnt/s3_data/dyna_posttrain/videos/
+# Verify dataset structure
+ls /mnt/s3_data/dyna_posttrain/videos/cam_high/ | head -5
+ls /mnt/s3_data/dyna_posttrain/control_input_edge/cam_high/ | head -5
+ls /mnt/s3_data/dyna_posttrain/captions/cam_high/ | head -5
 ```
 
-### 2. Update Dataset Path
+### Step 2: HuggingFace Login
 
-Edit `robotics_dataloader.py` and update the mount path:
-```python
-dataset = L(RoboticsTransferDataset)(
-    dataset_dir="/mnt/s3_data/dyna_posttrain",  # <-- Your mount path
-    ...
-)
-```
+Required for downloading the base checkpoint:
 
-### 3. HuggingFace Login (for checkpoint download)
 ```bash
 huggingface-cli login
+# Enter your access token when prompted
 ```
 
-## Training Commands
+### Step 3: Navigate to Project
 
-### 8 GPUs on 1 Node (Recommended)
 ```bash
 cd /root/projects/cosmos-transfer
-
-torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train \
-    --config=cosmos_transfer2/_src/transfer2_multiview/configs/vid2vid_transfer/config.py \
-    -- experiment=robotics_multiview_edge_posttrain \
-    job.wandb_mode=disabled
 ```
 
-### 8 Nodes with 1 GPU Each
-```bash
-# On each node, set MASTER_ADDR and MASTER_PORT, then:
-torchrun --nproc_per_node=1 --nnodes=8 --node_rank=$NODE_RANK \
-    --master_addr=$MASTER_ADDR --master_port=12341 \
-    -m scripts.train \
-    --config=cosmos_transfer2/_src/transfer2_multiview/configs/vid2vid_transfer/config.py \
-    -- experiment=robotics_multiview_edge_posttrain \
-    job.wandb_mode=disabled
-```
+### Step 4: Dry Run (Validate Config)
 
-### Dry Run (Test Config)
+Test that everything is configured correctly before starting training:
+
 ```bash
 torchrun --nproc_per_node=1 --master_port=12341 -m scripts.train \
     --config=cosmos_transfer2/_src/transfer2_multiview/configs/vid2vid_transfer/config.py \
     --dryrun -- experiment=robotics_multiview_edge_posttrain
 ```
 
-## Configuration
+This validates:
+- Config parsing works
+- Dataset paths exist and are readable
+- Checkpoint can be located/downloaded
+- No import errors
 
-### Key Parameters
+### Step 5: Run Training
 
-| Parameter | Value | Notes |
-|-----------|-------|-------|
-| Resolution | 480p (832x480) | Model adapts from 720p checkpoint |
-| FPS | 10 | Matches checkpoint |
-| Frames per sample | 29 | ~2.9 seconds |
-| Cameras | 5 | cam_high, wrists, waist |
-| Control type | Edge (Canny) | Preserves robot poses |
-| Caption source | cam_high only | Single caption per episode |
-| Batch size | 1 | Per GPU |
-| Max iterations | 5,000 | Adjust based on convergence |
-| Save interval | 500 | Checkpoint frequency |
+#### Option A: 8 GPUs on 1 Node (Recommended)
 
-### Changing Training Iterations
-
-Edit `robotics_posttrain.py`:
-```python
-trainer=dict(
-    max_iter=5_000,  # <-- Change this
-    ...
-)
+```bash
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train \
+    --config=cosmos_transfer2/_src/transfer2_multiview/configs/vid2vid_transfer/config.py \
+    -- experiment=robotics_multiview_edge_posttrain job.wandb_mode=disabled
 ```
 
-## Output
+#### Option B: 8 Nodes with 1 GPU Each
 
-Checkpoints saved to: `outputs/<job_name>/checkpoints/`
+```bash
+# On each node, set environment variables first:
+export MASTER_ADDR=<master_node_ip>
+export MASTER_PORT=12341
+export NODE_RANK=<0-7>
+
+torchrun --nproc_per_node=1 --nnodes=8 --node_rank=$NODE_RANK \
+    --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT \
+    -m scripts.train \
+    --config=cosmos_transfer2/_src/transfer2_multiview/configs/vid2vid_transfer/config.py \
+    -- experiment=robotics_multiview_edge_posttrain job.wandb_mode=disabled
+```
+
+### Step 6: Monitor Training
+
+Checkpoints and logs are saved to `outputs/robotics_edge_posttrain_480p_10fps/`:
+
+```bash
+# Watch for new checkpoints
+watch -n 60 'ls -la outputs/robotics_edge_posttrain_480p_10fps/checkpoints/'
+
+# Tail training logs
+tail -f outputs/robotics_edge_posttrain_480p_10fps/logs/*.log
+```
+
+---
+
+## Configuration Overrides
+
+Override parameters at runtime without editing files:
+
+```bash
+# Change max iterations
+torchrun ... -- experiment=robotics_multiview_edge_posttrain trainer.max_iter=10000
+
+# Enable Weights & Biases logging
+torchrun ... -- experiment=robotics_multiview_edge_posttrain job.wandb_mode=online
+
+# Change checkpoint frequency
+torchrun ... -- experiment=robotics_multiview_edge_posttrain checkpoint.save_iter=1000
+
+# Change batch size (careful with memory)
+torchrun ... -- experiment=robotics_multiview_edge_posttrain dataloader_train.batch_size=2
+```
+
+---
+
+## Output Structure
+
+```
+outputs/robotics_edge_posttrain_480p_10fps/
+├── checkpoints/
+│   ├── iter_000500/
+│   │   ├── model_ema_bf16.pt      # Use this for inference
+│   │   ├── model_reg_bf16.pt
+│   │   └── training_state.pt
+│   ├── iter_001000/
+│   └── ...
+├── logs/
+│   └── train.log
+└── samples/
+    └── ...
+```
+
+---
 
 ## Inference After Training
 
 ```bash
 python -m cosmos_transfer2.scripts.inference_multiview \
-    --checkpoint_path outputs/<job_name>/checkpoints/iter_XXXXX/model_ema_bf16.pt \
+    --checkpoint_path outputs/robotics_edge_posttrain_480p_10fps/checkpoints/iter_05000/model_ema_bf16.pt \
     --config your_inference_config.json
 ```
+
+---
 
 ## Troubleshooting
 
 ### CUDA Not Found
+
 ```bash
 cd /root/projects/cosmos-transfer
-uv sync --extra=cu121  # or cu124
+uv sync --extra=cu121  # or cu124 depending on your CUDA version
 ```
 
 ### Out of Memory
-- Reduce `num_workers` in dataloader
-- Use gradient checkpointing if available
-- Try 4 GPUs instead of 8
+
+- Reduce `num_workers` in `robotics_dataloader.py` (default: 4)
+- Ensure `context_parallel_size=1` in `robotics_posttrain.py`
+- Try fewer GPUs if single GPU memory is insufficient
 
 ### S3 Mount Issues
+
 ```bash
-# Check mount
+# Check if mounted
 mount | grep s3fs
 
-# Remount with debug
-s3fs YOUR_BUCKET /mnt/s3_data -o dbglevel=info -f
+# Unmount and remount with debug output
+sudo umount /mnt/s3_data
+s3fs YOUR_BUCKET /mnt/s3_data -o dbglevel=info -f -o allow_other
 ```
+
+### Dataset Not Found Errors
+
+Verify all required files exist:
+
+```bash
+# Count videos per camera
+for cam in cam_high cam_left_wrist cam_right_wrist cam_waist_left cam_waist_right; do
+    echo "$cam: $(ls /mnt/s3_data/dyna_posttrain/videos/$cam/*.mp4 2>/dev/null | wc -l) videos"
+done
+
+# Count edge videos per camera
+for cam in cam_high cam_left_wrist cam_right_wrist cam_waist_left cam_waist_right; do
+    echo "$cam: $(ls /mnt/s3_data/dyna_posttrain/control_input_edge/$cam/*.mp4 2>/dev/null | wc -l) edge videos"
+done
+
+# Count captions
+echo "captions: $(ls /mnt/s3_data/dyna_posttrain/captions/cam_high/*.json 2>/dev/null | wc -l)"
+```
+
+### Checkpoint Download Fails
+
+Ensure HuggingFace token has access to the model:
+
+```bash
+huggingface-cli whoami
+huggingface-cli login --token YOUR_TOKEN
+```
+
+---
+
+## File Reference
+
+| File | Purpose |
+|------|---------|
+| `robotics_dataloader.py` | Dataset and dataloader configuration |
+| `robotics_posttrain.py` | Experiment config (iterations, checkpointing, etc.) |
+| `README.md` | This guide |
