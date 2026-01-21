@@ -8,10 +8,12 @@ This experiment fine-tunes the Cosmos Transfer 2.5 multiview model on robotics d
 
 ## Dataset Structure
 
-Data stored in S3, mounted locally for training:
+Data stored in S3, mounted locally for training.
+
+**S3 Sync Status:** ✅ Synced (2026-01-21) — 3,913 files uploaded to `s3://synphony-mv-rnd/dyna_posttrain/`
 
 ```
-s3://YOUR_BUCKET/dyna_posttrain/    (mount at /mnt/s3_data/dyna_posttrain/)
+s3://synphony-mv-rnd/dyna_posttrain/    (mount at /mnt/s3_data/dyna_posttrain/)
 ├── videos/
 │   ├── cam_high/
 │   │   ├── episode_0001.mp4
@@ -75,8 +77,8 @@ sudo apt-get install s3fs
 # Create mount point
 sudo mkdir -p /mnt/s3_data
 
-# Mount (replace YOUR_BUCKET with your bucket name)
-s3fs YOUR_BUCKET /mnt/s3_data -o iam_role=auto -o allow_other
+# Mount the bucket
+s3fs synphony-mv-rnd /mnt/s3_data -o iam_role=auto -o allow_other
 
 # Verify dataset structure
 ls /mnt/s3_data/dyna_posttrain/videos/cam_high/ | head -5
@@ -226,7 +228,7 @@ mount | grep s3fs
 
 # Unmount and remount with debug output
 sudo umount /mnt/s3_data
-s3fs YOUR_BUCKET /mnt/s3_data -o dbglevel=info -f -o allow_other
+s3fs synphony-mv-rnd /mnt/s3_data -o dbglevel=info -f -o allow_other
 ```
 
 ### Dataset Not Found Errors
