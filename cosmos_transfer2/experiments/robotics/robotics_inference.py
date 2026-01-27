@@ -325,9 +325,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--control_weight", type=float, default=1.0, help="Control weight")
     parser.add_argument(
         "--use_negative_prompt",
-        action="store_true",
+        type=lambda x: x.lower() in ['true', '1', 'yes', 'y'],
         default=True,
-        help="Use negative prompt",
+        help="Use negative prompt (default: True)",
     )
 
     # Input/output
@@ -377,9 +377,9 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--add_camera_prefix",
-        action="store_true",
+        type=lambda x: x.lower() in ['true', '1', 'yes', 'y'],
         default=True,
-        help="Add camera prefix to captions",
+        help="Add camera prefix to captions (default: True)",
     )
 
     # Config overrides
