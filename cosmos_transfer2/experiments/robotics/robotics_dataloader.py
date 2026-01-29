@@ -27,9 +27,9 @@ Dataset structure expected:
 from typing import Final
 
 from hydra.core.config_store import ConfigStore
-from torch.utils.data import DataLoader
 
 from cosmos_transfer2._src.imaginaire.lazy_config import LazyCall as L
+from cosmos_transfer2._src.predict2.datasets.local_datasets.dataset_video import get_generic_dataloader
 from cosmos_transfer2._src.transfer2.datasets.local_datasets.multiview_dataset import (
     CTRL_TYPE_INFO,
     MultiviewTransferDataset,
@@ -88,7 +88,7 @@ def register_dataloader_robotics() -> None:
         group="data_train",
         package="dataloader_train",
         name="robotics_multiview_train_data_edge",
-        node=L(DataLoader)(
+        node=L(get_generic_dataloader)(
             dataset=dataset,
             batch_size=1,
             num_workers=4,
