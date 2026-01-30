@@ -285,6 +285,7 @@ class MultiviewTransferDataset(Dataset):
                     "video_path": video_path,
                 }
 
+                print(f"[DATALOADER]   Loading caption...", flush=True)
                 caption_path = os.path.join(self.captions_dir, f"{video_name}.json")
                 data_for_augmentor["ai_caption"] = AUTO_MV_DEFAULT_PROMPT
                 if os.path.exists(caption_path):
@@ -293,14 +294,19 @@ class MultiviewTransferDataset(Dataset):
                     if "caption" in metadata and len(metadata["caption"]) > 0:
                         data_for_augmentor["ai_caption"] = metadata["caption"]
 
+                print(f"[DATALOADER]   Loading control data for {camera_key}...", flush=True)
                 if self.ctrl_types:
+                    _ctrl_start = _time.time()
                     ctrl_data = self._load_control_data(video_name, camera_key, frame_ids)
+                    print(f"[DATALOADER]   Control data loaded in {_time.time()-_ctrl_start:.2f}s", flush=True)
                     if ctrl_data is None:
                         raise ValueError(f"Failed to load control data for {video_name} view {camera_key}")
                     data_for_augmentor.update(ctrl_data)
 
+                print(f"[DATALOADER]   Running augmentor...", flush=True)
                 for _, aug_fn in self.augmentor.items():
                     augmented_data = aug_fn(data_for_augmentor)
+                print(f"[DATALOADER]   Augmentor done, appending to list", flush=True)
 
                 videos.append(augmented_data["video"])
                 control_inputs.append(augmented_data[self.hint_key])
