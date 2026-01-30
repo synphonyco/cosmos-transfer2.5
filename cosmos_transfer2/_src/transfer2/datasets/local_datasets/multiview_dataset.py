@@ -259,15 +259,19 @@ class MultiviewTransferDataset(Dataset):
                 video_path = os.path.join(self.dataset_dir, "videos", camera_key, f"{video_name}.mp4")
                 _cam_start = _time.time()
                 frames_np, fps = self._load_video(video_path, frame_ids)
-                print(f"[DATALOADER]   Camera {camera_key} loaded in {_time.time()-_cam_start:.2f}s", flush=True)
+                print(f"[DATALOADER]   Camera {camera_key} video loaded in {_time.time()-_cam_start:.2f}s, shape={frames_np.shape}", flush=True)
 
                 h, w = frames_np.shape[1], frames_np.shape[2]
                 aspect_ratio = detect_aspect_ratio((self.W, self.H))
 
+                print(f"[DATALOADER]   Converting to tensor...", flush=True)
                 frames_t = torch.from_numpy(frames_np.astype(np.uint8)).permute(0, 3, 1, 2)
+                print(f"[DATALOADER]   Preprocessing...", flush=True)
                 frames_t = self.preprocess(frames_t)
+                print(f"[DATALOADER]   Clamping...", flush=True)
                 frames_t = torch.clamp(frames_t * 255.0, 0, 255).to(torch.uint8)
                 video = frames_t.permute(1, 0, 2, 3)  # C, T, H, W
+                print(f"[DATALOADER]   Camera {camera_key} preprocessed, video shape={video.shape}", flush=True)
 
                 data_for_augmentor = {
                     "video": video,
