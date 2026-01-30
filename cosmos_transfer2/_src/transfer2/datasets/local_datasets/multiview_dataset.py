@@ -241,17 +241,25 @@ class MultiviewTransferDataset(Dataset):
 
     def __getitem__(self, index):
         try:
+            import time as _time
+            _start = _time.time()
+            print(f"[DATALOADER] __getitem__ called with index={index}", flush=True)
+
             sample = self.samples[index]
             base_video_path = sample["video_path"]
             frame_ids = sample["frame_ids"]
             video_name = os.path.basename(base_video_path).replace(".mp4", "")
+            print(f"[DATALOADER] Loading sample: {video_name}, frames={frame_ids[0]}-{frame_ids[-1]}", flush=True)
 
             videos, control_inputs = [], []
             fps = 24  # Default FPS
 
-            for camera_key in self.camera_keys:
+            for cam_idx, camera_key in enumerate(self.camera_keys):
+                print(f"[DATALOADER]   Loading camera {cam_idx+1}/{len(self.camera_keys)}: {camera_key}", flush=True)
                 video_path = os.path.join(self.dataset_dir, "videos", camera_key, f"{video_name}.mp4")
+                _cam_start = _time.time()
                 frames_np, fps = self._load_video(video_path, frame_ids)
+                print(f"[DATALOADER]   Camera {camera_key} loaded in {_time.time()-_cam_start:.2f}s", flush=True)
 
                 h, w = frames_np.shape[1], frames_np.shape[2]
                 aspect_ratio = detect_aspect_ratio((self.W, self.H))
@@ -321,6 +329,7 @@ class MultiviewTransferDataset(Dataset):
             final_data["padding_mask"] = torch.zeros(1, self.H, self.W)
             final_data["ref_cam_view_idx_sample_position"] = -1
             final_data["front_cam_view_idx_sample_position"] = torch.tensor([0])
+            print(f"[DATALOADER] Sample {index} complete in {_time.time()-_start:.2f}s, video shape={final_data['video'].shape}", flush=True)
             return final_data
 
         except Exception as e:
