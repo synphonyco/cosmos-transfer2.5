@@ -232,6 +232,13 @@ class MultiviewTransferDataset(Dataset):
                     hdmap_frames = vr.get_batch(frame_ids).asnumpy()  # [T,H,W,C]
                     hdmap_frames = torch.from_numpy(hdmap_frames).permute(3, 0, 1, 2)  # [C,T,H,W], same as rgb video
                     data_dict["hdmap_bbox"] = hdmap_frames
+                elif ctrl_type == "edgeprecomputed":
+                    # Pre-computed edge videos - load and store as hdmap_bbox for augmentor compatibility
+                    vr = VideoReader(ctrl_path, ctx=cpu(0))
+                    assert len(vr) >= frame_ids[-1] + 1, f"Edge video {ctrl_path} has fewer frames than main video"
+                    edge_frames = vr.get_batch(frame_ids).asnumpy()  # [T,H,W,C]
+                    edge_frames = torch.from_numpy(edge_frames).permute(3, 0, 1, 2)  # [C,T,H,W]
+                    data_dict["hdmap_bbox"] = edge_frames  # Use hdmap_bbox key for augmentor compatibility
 
             except Exception as e:
                 warnings.warn(f"Failed to load control data from {ctrl_path}: {str(e)}")
