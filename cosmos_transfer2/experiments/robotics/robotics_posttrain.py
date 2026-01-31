@@ -78,8 +78,6 @@ robotics_multiview_edge_posttrain = dict(
             resolution="480",
             # We have 5 camera views, use all of them
             train_sample_views_range=[5, 5],
-            # Override state_t for longer videos (93 frames instead of 29)
-            state_t=24,
         ),
     ),
     trainer=dict(

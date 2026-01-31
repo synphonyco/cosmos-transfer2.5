@@ -75,8 +75,8 @@ def register_dataloader_robotics() -> None:
         dataset_dir="/mnt/s3_data/dyna_posttrain",  # S3 bucket mount point
         hint_key="control_input_hdmap_bbox",  # Must match augmentor output key
         resolution="480",
-        state_t=24,
-        num_frames=93,
+        state_t=8,
+        num_frames=29,
         sequence_interval=1,
         start_frame_interval=1,
         camera_keys=list(ROBOTICS_CAMERAS),
