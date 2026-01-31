@@ -76,6 +76,8 @@ robotics_multiview_edge_posttrain = dict(
             base_load_from=None,
             # Resolution setting - model will adapt from 720p checkpoint to 480p data
             resolution="480",
+            # We have 5 camera views, use all of them
+            train_sample_views_range=[5, 5],
         ),
     ),
     trainer=dict(
