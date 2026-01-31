@@ -99,9 +99,9 @@ robotics_multiview_edge_posttrain = dict(
         ),
     ),
     model_parallel=dict(
-        # Disable context parallelism - n_views (5) must be <= cp_size
-        # With 4 GPUs and 5 views, we can't use CP effectively
-        context_parallel_size=1,
+        # n_views (5) must be <= cp_size
+        # Using 8 GPUs with cp_size=8 (extra slots are padded)
+        context_parallel_size=8,
     ),
 )
 
