@@ -87,9 +87,9 @@ robotics_multiview_edge_posttrain = dict(
             heart_beat=dict(save_s3=False),
             iter_speed=dict(hit_thres=100, save_s3=False),
             device_monitor=dict(save_s3=False),
-            # Generate validation samples every 200 iters (matches checkpoint frequency)
-            every_n_sample_reg=dict(every_n=200, save_s3=False),
-            every_n_sample_ema=dict(every_n=200, save_s3=False),
+            # Disable sample generation - causes view_indices_selection error
+            every_n_sample_reg=dict(enabled=False),
+            every_n_sample_ema=dict(enabled=False),
             wandb=dict(save_s3=False),
             wandb_10x=dict(save_s3=False),
             dataloader_speed=dict(save_s3=False),
