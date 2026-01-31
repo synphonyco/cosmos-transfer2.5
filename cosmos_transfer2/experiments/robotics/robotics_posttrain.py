@@ -99,10 +99,9 @@ robotics_multiview_edge_posttrain = dict(
         ),
     ),
     model_parallel=dict(
-        # context_parallel_size=2 for 480p (NVIDIA used 2 for 480p AV, 8 for 720p)
-        # Splits 24 latent frames across 2 GPUs (12 per GPU)
-        # Remaining 6 GPUs used for data parallelism (effective batch = 4)
-        context_parallel_size=2,
+        # Disable context parallelism - n_views (5) must be <= cp_size
+        # With 4 GPUs and 5 views, we can't use CP effectively
+        context_parallel_size=1,
     ),
 )
 
