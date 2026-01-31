@@ -335,7 +335,7 @@ class MultiviewTransferDataset(Dataset):
                 "video_path": base_video_path,
             }
             final_data["aspect_ratio"] = data_for_augmentor["aspect_ratio"]
-            final_data["ai_caption"] = data_for_augmentor["ai_caption"]
+            final_data["ai_caption"] = [data_for_augmentor["ai_caption"]]  # Wrap in list for model
             final_data["padding_mask"] = torch.zeros(1, self.H, self.W)
             final_data["ref_cam_view_idx_sample_position"] = -1
             final_data["front_cam_view_idx_sample_position"] = torch.tensor([0])
