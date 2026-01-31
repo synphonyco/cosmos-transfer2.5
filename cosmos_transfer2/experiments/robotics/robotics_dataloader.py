@@ -35,13 +35,15 @@ from cosmos_transfer2._src.transfer2.datasets.local_datasets.multiview_dataset i
     MultiviewTransferDataset,
 )
 
-# Add support for pre-computed edge videos
-# (default "edge" type computes Canny on-the-fly, but we have pre-computed edge videos)
-# Note: no underscore to avoid being split into multiple ctrl_types
-CTRL_TYPE_INFO["edgeprecomputed"] = {
-    "folder": "control_input_edge",
+# Override hdmap_bbox to use our pre-computed edge videos folder
+# This works because:
+# 1. hint_key="control_input_hdmap_bbox" matches augmentor output key
+# 2. ctrl_type="hdmap_bbox" uses this CTRL_TYPE_INFO entry
+# 3. folder points to our actual data location
+CTRL_TYPE_INFO["hdmap_bbox"] = {
+    "folder": "control_input_edge",  # Our pre-computed edge videos
     "format": "mp4",
-    "data_dict_key": "hdmap_bbox",  # Use hdmap_bbox for augmentor compatibility
+    "data_dict_key": "hdmap_bbox",
 }
 
 # Robotics camera configuration
@@ -71,7 +73,7 @@ def register_dataloader_robotics() -> None:
     # Mount S3 bucket first: s3fs YOUR_BUCKET /mnt/s3_data -o iam_role=auto
     dataset = L(MultiviewTransferDataset)(
         dataset_dir="/mnt/s3_data/dyna_posttrain",  # S3 bucket mount point
-        hint_key="control_input_edgeprecomputed",  # Pre-computed edge videos (no underscore to avoid split)
+        hint_key="control_input_hdmap_bbox",  # Must match augmentor output key
         resolution="480",
         state_t=24,
         num_frames=93,
