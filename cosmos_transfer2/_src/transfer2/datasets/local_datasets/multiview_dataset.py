@@ -331,6 +331,9 @@ class MultiviewTransferDataset(Dataset):
             final_data["latent_view_indices_B_T"] = (
                 torch.tensor(view_indices).repeat_interleave(self.state_t).contiguous()
             )
+            # For sample callbacks during training
+            final_data["view_indices_selection"] = torch.tensor(view_indices, dtype=torch.int64)
+            final_data["camera_keys_selection"] = list(self.camera_keys)
             final_data["video_name"] = {
                 "video_path": base_video_path,
             }
