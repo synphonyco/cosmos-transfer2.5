@@ -424,10 +424,15 @@ def main():
 
     os.makedirs(args.save_root, exist_ok=True)
 
-    # Find video files
+    # Find video files - check both "control" and "control_input_edge" folders
+    control_folder = "control"
     control_dir = input_root / "control" / camera_order[0]
     if not control_dir.exists():
-        raise FileNotFoundError(f"Control directory not found: {control_dir}")
+        # Try control_input_edge (training data format)
+        control_dir = input_root / "control_input_edge" / camera_order[0]
+        control_folder = "control_input_edge"
+    if not control_dir.exists():
+        raise FileNotFoundError(f"Control directory not found. Tried: {input_root}/control and {input_root}/control_input_edge")
 
     video_files = sorted(control_dir.glob("*.mp4"))
     video_ids = [f.stem for f in video_files[: args.max_samples]]
@@ -468,7 +473,7 @@ def main():
                 camera_order,
                 target_frames=target_frames,
                 target_size=target_size,
-                folder_name="control",
+                folder_name=control_folder,
                 allow_variable_length=args.use_autoregressive,
             )
 
