@@ -471,7 +471,7 @@ class EveryNDrawSampleMultiviewVideo(EveryNDrawSample):
                         log.info(f"hint: {hint.shape}")
                         to_show.append(hint.float().cpu())
 
-        if n_views == 7:
+        if n_views > 1:
             to_show = [time_to_width_dimension(t) for t in to_show]
 
         base_fp_wo_ext = f"{tag}_ReplicateID{self.data_parallel_id:04d}_Sample_Iter{iteration:09d}_{n_views}views"
