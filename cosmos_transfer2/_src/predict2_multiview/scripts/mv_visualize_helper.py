@@ -71,7 +71,12 @@ def create_dynamic_grid_layout(view_keys):
     elif n_views <= 6:
         # 2 rows, balanced
         mid = (n_views + 1) // 2
-        return [view_keys[:mid], view_keys[mid:]]
+        row1 = view_keys[:mid]
+        row2 = view_keys[mid:]
+        # Pad shorter row with None to match longer row
+        while len(row2) < len(row1):
+            row2.append(None)
+        return [row1, row2]
     elif n_views <= 9:
         # 3x3 grid for 7-9 views
         row_size = 3
