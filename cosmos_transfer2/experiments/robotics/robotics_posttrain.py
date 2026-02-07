@@ -93,6 +93,9 @@ robotics_multiview_edge_posttrain = dict(
             wandb_10x=dict(save_s3=False),
             dataloader_speed=dict(save_s3=False),
             frame_loss_log=dict(save_s3=False),
+            # Set sample callbacks to very high interval to effectively disable them
+            every_n_sample_reg=dict(every_n=999999),
+            every_n_sample_ema=dict(every_n=999999),
         ),
     ),
     model_parallel=dict(
