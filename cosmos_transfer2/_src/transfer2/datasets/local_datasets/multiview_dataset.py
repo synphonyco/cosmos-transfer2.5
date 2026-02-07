@@ -241,37 +241,25 @@ class MultiviewTransferDataset(Dataset):
 
     def __getitem__(self, index):
         try:
-            import time as _time
-            _start = _time.time()
-            print(f"[DATALOADER] __getitem__ called with index={index}", flush=True)
-
             sample = self.samples[index]
             base_video_path = sample["video_path"]
             frame_ids = sample["frame_ids"]
             video_name = os.path.basename(base_video_path).replace(".mp4", "")
-            print(f"[DATALOADER] Loading sample: {video_name}, frames={frame_ids[0]}-{frame_ids[-1]}", flush=True)
 
             videos, control_inputs = [], []
             fps = 24  # Default FPS
 
             for cam_idx, camera_key in enumerate(self.camera_keys):
-                print(f"[DATALOADER]   Loading camera {cam_idx+1}/{len(self.camera_keys)}: {camera_key}", flush=True)
                 video_path = os.path.join(self.dataset_dir, "videos", camera_key, f"{video_name}.mp4")
-                _cam_start = _time.time()
                 frames_np, fps = self._load_video(video_path, frame_ids)
-                print(f"[DATALOADER]   Camera {camera_key} video loaded in {_time.time()-_cam_start:.2f}s, shape={frames_np.shape}", flush=True)
 
                 h, w = frames_np.shape[1], frames_np.shape[2]
                 aspect_ratio = detect_aspect_ratio((self.W, self.H))
 
-                print(f"[DATALOADER]   Converting to tensor...", flush=True)
                 frames_t = torch.from_numpy(frames_np.astype(np.uint8)).permute(0, 3, 1, 2)
-                print(f"[DATALOADER]   Preprocessing...", flush=True)
                 frames_t = self.preprocess(frames_t)
-                print(f"[DATALOADER]   Clamping...", flush=True)
                 frames_t = torch.clamp(frames_t * 255.0, 0, 255).to(torch.uint8)
                 video = frames_t.permute(1, 0, 2, 3)  # C, T, H, W
-                print(f"[DATALOADER]   Camera {camera_key} preprocessed, video shape={video.shape}", flush=True)
 
                 data_for_augmentor = {
                     "video": video,
@@ -285,7 +273,6 @@ class MultiviewTransferDataset(Dataset):
                     "video_path": video_path,
                 }
 
-                print(f"[DATALOADER]   Loading caption...", flush=True)
                 caption_path = os.path.join(self.captions_dir, f"{video_name}.json")
                 data_for_augmentor["ai_caption"] = AUTO_MV_DEFAULT_PROMPT
                 if os.path.exists(caption_path):
@@ -294,19 +281,14 @@ class MultiviewTransferDataset(Dataset):
                     if "caption" in metadata and len(metadata["caption"]) > 0:
                         data_for_augmentor["ai_caption"] = metadata["caption"]
 
-                print(f"[DATALOADER]   Loading control data for {camera_key}...", flush=True)
                 if self.ctrl_types:
-                    _ctrl_start = _time.time()
                     ctrl_data = self._load_control_data(video_name, camera_key, frame_ids)
-                    print(f"[DATALOADER]   Control data loaded in {_time.time()-_ctrl_start:.2f}s", flush=True)
                     if ctrl_data is None:
                         raise ValueError(f"Failed to load control data for {video_name} view {camera_key}")
                     data_for_augmentor.update(ctrl_data)
 
-                print(f"[DATALOADER]   Running augmentor...", flush=True)
                 for _, aug_fn in self.augmentor.items():
                     augmented_data = aug_fn(data_for_augmentor)
-                print(f"[DATALOADER]   Augmentor done, appending to list", flush=True)
 
                 videos.append(augmented_data["video"])
                 control_inputs.append(augmented_data[self.hint_key])
@@ -342,14 +324,10 @@ class MultiviewTransferDataset(Dataset):
             final_data["padding_mask"] = torch.zeros(1, self.H, self.W)
             final_data["ref_cam_view_idx_sample_position"] = -1
             final_data["front_cam_view_idx_sample_position"] = torch.tensor([0])
-            print(f"[DATALOADER] Sample {index} complete in {_time.time()-_start:.2f}s, video shape={final_data['video'].shape}", flush=True)
             return final_data
 
         except Exception as e:
             self.num_failed_loads += 1
-            # Print error to stdout so it appears in Modal logs
-            print(f"[DATALOADER ERROR] Failed to load sample {index}: {e}", flush=True)
-            print(f"[DATALOADER ERROR] Traceback:\n{traceback.format_exc()}", flush=True)
             log.warning(
                 f"Failed to load video {self.video_paths[index]} (total failures: {self.num_failed_loads}): {e}\n"
                 f"{traceback.format_exc()}",

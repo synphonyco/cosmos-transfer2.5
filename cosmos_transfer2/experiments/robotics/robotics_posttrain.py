@@ -64,7 +64,7 @@ robotics_multiview_edge_posttrain = dict(
         name="robotics_edge_posttrain_480p_10fps",
     ),
     checkpoint=dict(
-        save_iter=200,  # More frequent checkpoints for smaller dataset (catch optimal before overfitting)
+        save_iter=200,  # More frequent checkpoints for smaller dataset
         load_path=_CHECKPOINT_PATH,
         load_training_state=False,
         strict_resume=False,
@@ -89,7 +89,7 @@ robotics_multiview_edge_posttrain = dict(
         max_iter=5_000,
         callbacks=dict(
             heart_beat=dict(save_s3=False),
-            iter_speed=dict(hit_thres=100, save_s3=False),
+            iter_speed=dict(hit_thres=500, save_s3=False),  # Log first 500 iters after resume
             device_monitor=dict(save_s3=False),
             # Sample generation now works - added view_indices_selection to dataloader
             # every_n_sample_reg and every_n_sample_ema use defaults from base config
@@ -97,9 +97,9 @@ robotics_multiview_edge_posttrain = dict(
             wandb_10x=dict(save_s3=False),
             dataloader_speed=dict(save_s3=False),
             frame_loss_log=dict(save_s3=False),
-            # Disable sample callbacks with very high interval (must use LazyCall to override base config)
+            # Disable sample callbacks by setting every_n=0 (skips on_training_step_end entirely)
             every_n_sample_reg=L(EveryNDrawSampleMultiviewVideo)(
-                every_n=999_999,
+                every_n=0,
                 is_x0=False,
                 is_ema=False,
                 num_sampling_step=35,
@@ -109,7 +109,7 @@ robotics_multiview_edge_posttrain = dict(
                 control_weights=[0.0, 1.0],
             ),
             every_n_sample_ema=L(EveryNDrawSampleMultiviewVideo)(
-                every_n=999_999,
+                every_n=0,
                 is_x0=False,
                 is_ema=True,
                 num_sampling_step=35,
