@@ -32,7 +32,11 @@ Dataset structure expected at /mnt/s3_data/dyna_posttrain/:
 
 from hydra.core.config_store import ConfigStore
 
+from cosmos_transfer2._src.imaginaire.lazy_config import LazyCall as L
 from cosmos_transfer2._src.imaginaire.utils.checkpoint_db import get_checkpoint_path
+from cosmos_transfer2._src.predict2_multiview.callbacks.every_n_draw_sample_multiviewvideo import (
+    EveryNDrawSampleMultiviewVideo,
+)
 from cosmos_transfer2.multiview_config import DEFAULT_CHECKPOINT
 
 # Import the dataloader registration
@@ -93,9 +97,27 @@ robotics_multiview_edge_posttrain = dict(
             wandb_10x=dict(save_s3=False),
             dataloader_speed=dict(save_s3=False),
             frame_loss_log=dict(save_s3=False),
-            # Set sample callbacks to very high interval to effectively disable them
-            every_n_sample_reg=dict(every_n=999999),
-            every_n_sample_ema=dict(every_n=999999),
+            # Disable sample callbacks with very high interval (must use LazyCall to override base config)
+            every_n_sample_reg=L(EveryNDrawSampleMultiviewVideo)(
+                every_n=999_999,
+                is_x0=False,
+                is_ema=False,
+                num_sampling_step=35,
+                guidance=[7],
+                fps=10,
+                ctrl_hint_keys=["control_input_edge"],
+                control_weights=[0.0, 1.0],
+            ),
+            every_n_sample_ema=L(EveryNDrawSampleMultiviewVideo)(
+                every_n=999_999,
+                is_x0=False,
+                is_ema=True,
+                num_sampling_step=35,
+                guidance=[7],
+                fps=10,
+                ctrl_hint_keys=["control_input_edge"],
+                control_weights=[0.0, 1.0],
+            ),
         ),
     ),
     model_parallel=dict(
