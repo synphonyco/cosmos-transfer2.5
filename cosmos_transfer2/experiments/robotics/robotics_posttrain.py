@@ -93,9 +93,6 @@ robotics_multiview_edge_posttrain = dict(
             wandb_10x=dict(save_s3=False),
             dataloader_speed=dict(save_s3=False),
             frame_loss_log=dict(save_s3=False),
-            # Disable sample drawing to avoid viz callback issues with 5 views
-            every_n_sample_reg=None,
-            every_n_sample_ema=None,
         ),
     ),
     model_parallel=dict(
