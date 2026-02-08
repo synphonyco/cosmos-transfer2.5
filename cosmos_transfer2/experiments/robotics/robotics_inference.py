@@ -196,36 +196,41 @@ def load_captions(
     video_id: str,
     camera_order: list[str],
     add_camera_prefix: bool = True,
+    custom_prompt: str = None,
 ) -> list[str]:
     """Load captions for all views. Falls back to default if not found."""
     captions_dir = input_root / "captions"
     captions = []
 
     for camera in camera_order:
-        caption = DEFAULT_ROBOTICS_CAPTION
+        # Use custom prompt if provided, otherwise load from file or default
+        if custom_prompt:
+            caption = custom_prompt
+        else:
+            caption = DEFAULT_ROBOTICS_CAPTION
 
-        # Try to load caption file
-        caption_path = captions_dir / camera / f"{video_id}.txt"
-        json_path = captions_dir / camera / f"{video_id}.json"
+            # Try to load caption file
+            caption_path = captions_dir / camera / f"{video_id}.txt"
+            json_path = captions_dir / camera / f"{video_id}.json"
 
-        if caption_path.exists():
-            with open(caption_path, "r") as f:
-                caption = f.read().strip()
-        elif json_path.exists():
-            with open(json_path, "r") as f:
-                data = json.load(f)
-                caption = data.get("caption", DEFAULT_ROBOTICS_CAPTION)
-        elif camera == "cam_high":
-            # Try cam_high caption for all views (training used cam_high only)
-            cam_high_txt = captions_dir / "cam_high" / f"{video_id}.txt"
-            cam_high_json = captions_dir / "cam_high" / f"{video_id}.json"
-            if cam_high_txt.exists():
-                with open(cam_high_txt, "r") as f:
+            if caption_path.exists():
+                with open(caption_path, "r") as f:
                     caption = f.read().strip()
-            elif cam_high_json.exists():
-                with open(cam_high_json, "r") as f:
+            elif json_path.exists():
+                with open(json_path, "r") as f:
                     data = json.load(f)
                     caption = data.get("caption", DEFAULT_ROBOTICS_CAPTION)
+            elif camera == "cam_high":
+                # Try cam_high caption for all views (training used cam_high only)
+                cam_high_txt = captions_dir / "cam_high" / f"{video_id}.txt"
+                cam_high_json = captions_dir / "cam_high" / f"{video_id}.json"
+                if cam_high_txt.exists():
+                    with open(cam_high_txt, "r") as f:
+                        caption = f.read().strip()
+                elif cam_high_json.exists():
+                    with open(cam_high_json, "r") as f:
+                        data = json.load(f)
+                        caption = data.get("caption", DEFAULT_ROBOTICS_CAPTION)
 
         # Add camera-specific prefix
         if add_camera_prefix:
@@ -344,6 +349,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Output directory",
     )
     parser.add_argument("--max_samples", type=int, default=5, help="Max samples to process")
+    parser.add_argument("--prompt", type=str, default=None, help="Custom prompt to override captions")
 
     # Video parameters
     parser.add_argument("--target_height", type=int, default=480, help="Target height")
@@ -495,7 +501,8 @@ def main():
 
             # Load captions
             captions = load_captions(
-                input_root, video_id, camera_order, args.add_camera_prefix
+                input_root, video_id, camera_order, args.add_camera_prefix,
+                custom_prompt=args.prompt
             )
 
             if rank0:
