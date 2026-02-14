@@ -464,8 +464,12 @@ class ControlVideo2WorldInference:
 
         # Pad to chunk_size if needed (for last chunk)
         actual_chunk_frames = end_frame - start_frame
+        if self.rank0:
+            logger.info(f"_create_chunk_batch: actual_chunk_frames={actual_chunk_frames}, chunk_size={chunk_size}")
         if chunk_size is not None and actual_chunk_frames < chunk_size:
             padding_frames = chunk_size - actual_chunk_frames
+            if self.rank0:
+                logger.info(f"Padding chunk: adding {padding_frames} frames")
             # Pad input video chunk: repeat last frame
             last_frame_input = input_video_chunk[:, :, :, -1:, :, :]
             padding_input = last_frame_input.repeat(1, 1, 1, padding_frames, 1, 1)
