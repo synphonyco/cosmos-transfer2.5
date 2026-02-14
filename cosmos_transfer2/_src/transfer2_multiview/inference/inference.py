@@ -313,7 +313,7 @@ class ControlVideo2WorldInference:
 
             # Create chunk batch (extract 29-frame window from full video)
             chunk_batch = self._create_chunk_batch(
-                full_batch, current_input_video, full_control, start_frame, end_frame, n_views
+                full_batch, current_input_video, full_control, start_frame, end_frame, n_views, chunk_size
             )
 
             chunk_batch["num_conditional_frames"] = _num_conditional_frames_for_batch(
@@ -430,6 +430,7 @@ class ControlVideo2WorldInference:
         start_frame: int,
         end_frame: int,
         n_views: int,
+        chunk_size: int = None,
     ) -> dict[str, torch.Tensor]:
         """
         Create a batch for a specific chunk by extracting a start_frame:end_frame window from each view.
@@ -441,6 +442,7 @@ class ControlVideo2WorldInference:
             start_frame: Start frame index within each view
             end_frame: End frame index within each view
             n_views: Number of views (7)
+            chunk_size: Expected chunk size (for padding last chunk if needed)
 
         Returns:
             Batch dictionary with (end_frame - start_frame)*n_views frame tensors
@@ -460,6 +462,25 @@ class ControlVideo2WorldInference:
         view_indices = einops.rearrange(original_batch["view_indices"], "N (V T) -> N V T", V=n_views)
         view_indices_chunk = view_indices[:, :, start_frame:end_frame]
 
+        # Pad to chunk_size if needed (for last chunk)
+        actual_chunk_frames = end_frame - start_frame
+        if chunk_size is not None and actual_chunk_frames < chunk_size:
+            padding_frames = chunk_size - actual_chunk_frames
+            # Pad input video chunk: repeat last frame
+            last_frame_input = input_video_chunk[:, :, :, -1:, :, :]
+            padding_input = last_frame_input.repeat(1, 1, 1, padding_frames, 1, 1)
+            input_video_chunk = torch.cat([input_video_chunk, padding_input], dim=3)
+            # Pad control video chunk: repeat last frame
+            last_frame_control = control_video_chunk[:, :, :, -1:, :, :]
+            padding_control = last_frame_control.repeat(1, 1, 1, padding_frames, 1, 1)
+            control_video_chunk = torch.cat([control_video_chunk, padding_control], dim=3)
+            # Pad view indices: repeat last index
+            last_idx = view_indices_chunk[:, :, -1:]
+            padding_idx = last_idx.repeat(1, 1, padding_frames)
+            view_indices_chunk = torch.cat([view_indices_chunk, padding_idx], dim=2)
+            # Update actual_chunk_frames for num_video_frames_per_view
+            actual_chunk_frames = chunk_size
+
         input_video_chunk = einops.rearrange(input_video_chunk, "N V C T H W -> N C (V T) H W")
         control_video_chunk = einops.rearrange(control_video_chunk, "N V C T H W -> N C (V T) H W")
         view_indices_chunk = einops.rearrange(view_indices_chunk, "N V T -> N (V T)")
@@ -467,7 +488,7 @@ class ControlVideo2WorldInference:
         chunk_batch["control_input_hdmap_bbox"] = control_video_chunk.clone()
         chunk_batch["num_video_frames_per_view"] = torch.tensor(
             [
-                end_frame - start_frame,
+                actual_chunk_frames,
             ]
         ).to(original_batch["num_video_frames_per_view"])
         chunk_batch["view_indices"] = view_indices_chunk.clone()
