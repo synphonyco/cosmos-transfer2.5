@@ -465,11 +465,11 @@ class ControlVideo2WorldInference:
         # Pad to chunk_size if needed (for last chunk)
         actual_chunk_frames = end_frame - start_frame
         if self.rank0:
-            logger.info(f"_create_chunk_batch: actual_chunk_frames={actual_chunk_frames}, chunk_size={chunk_size}")
+            logger.info(f"_create_chunk_batch: actual={actual_chunk_frames}, chunk_size={chunk_size}, video_chunk={input_video_chunk.shape}, control_chunk={control_video_chunk.shape}")
         if chunk_size is not None and actual_chunk_frames < chunk_size:
             padding_frames = chunk_size - actual_chunk_frames
             if self.rank0:
-                logger.info(f"Padding chunk: adding {padding_frames} frames")
+                logger.info(f"Padding chunk: adding {padding_frames} frames, BEFORE video={input_video_chunk.shape}, control={control_video_chunk.shape}")
             # Pad input video chunk: repeat last frame
             last_frame_input = input_video_chunk[:, :, :, -1:, :, :]
             padding_input = last_frame_input.repeat(1, 1, 1, padding_frames, 1, 1)
@@ -484,6 +484,8 @@ class ControlVideo2WorldInference:
             view_indices_chunk = torch.cat([view_indices_chunk, padding_idx], dim=2)
             # Update actual_chunk_frames for num_video_frames_per_view
             actual_chunk_frames = chunk_size
+            if self.rank0:
+                logger.info(f"AFTER padding: video={input_video_chunk.shape}, control={control_video_chunk.shape}")
 
         input_video_chunk = einops.rearrange(input_video_chunk, "N V C T H W -> N C (V T) H W")
         control_video_chunk = einops.rearrange(control_video_chunk, "N V C T H W -> N C (V T) H W")
