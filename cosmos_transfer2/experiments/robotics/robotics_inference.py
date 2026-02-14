@@ -538,6 +538,9 @@ def main():
                     chunk_size=chunk_size,
                     chunk_overlap=args.chunk_overlap,
                     use_negative_prompt=args.use_negative_prompt,
+                    dynamic_cache_chunks=False,
+                    dynamic_cache_fps=args.fps,
+                    dynamic_cache_dir=args.save_root,
                 )
                 video = video.unsqueeze(0)
                 control = control.unsqueeze(0)
