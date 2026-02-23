@@ -499,7 +499,8 @@ class ControlVideo2WorldInference:
 
                 # OPTIMIZATION: Cache the last latent frames for the next chunk's conditioning
                 # This avoids re-encoding these frames through the VAE in the next iteration
-                if chunk_id < num_chunks - 1 and sigma_max is not None:
+                # Note: Only cache if num_latent_conditional_frames > 0 (avoid -0: slice bug)
+                if chunk_id < num_chunks - 1 and sigma_max is not None and num_latent_conditional_frames > 0:
                     prev_latents_cache = sample[:, :, -num_latent_conditional_frames:, :, :].contiguous().clone()
 
                 # --- DEBUG VISUALIZATION (commented out) ---
@@ -541,24 +542,32 @@ class ControlVideo2WorldInference:
 
                 # For next chunk, use last conditional_frames as input
                 if chunk_id < num_chunks - 1:  # Don't need to prepare next input for last chunk
-                    last_frames = video[
-                        :, :, video.shape[2] - num_conditional_frames :, :, :
-                    ]  # (1, C, num_conditional_frames, H, W)
-                    # Convert to uint8 [0, 255]
-                    last_frames_uint8 = normalized_float_to_uint8(last_frames)
-                    # Create blank frames for the rest
-                    blank_frames = torch.zeros(
-                        (
-                            1,
-                            3,
-                            num_video_frames_per_chunk - num_conditional_frames,
-                            video.shape[-2],
-                            video.shape[-1],
-                        ),
-                        dtype=torch.uint8,
-                        device=video.device,
-                    )
-                    prev_output = torch.cat([last_frames_uint8, blank_frames], dim=2)
+                    if num_conditional_frames > 0:
+                        last_frames = video[
+                            :, :, video.shape[2] - num_conditional_frames :, :, :
+                        ]  # (1, C, num_conditional_frames, H, W)
+                        # Convert to uint8 [0, 255]
+                        last_frames_uint8 = normalized_float_to_uint8(last_frames)
+                        # Create blank frames for the rest
+                        blank_frames = torch.zeros(
+                            (
+                                1,
+                                3,
+                                num_video_frames_per_chunk - num_conditional_frames,
+                                video.shape[-2],
+                                video.shape[-1],
+                            ),
+                            dtype=torch.uint8,
+                            device=video.device,
+                        )
+                        prev_output = torch.cat([last_frames_uint8, blank_frames], dim=2)
+                    else:
+                        # No conditional frames - use all blank frames (avoid -0: slice bug)
+                        prev_output = torch.zeros(
+                            (1, 3, num_video_frames_per_chunk, video.shape[-2], video.shape[-1]),
+                            dtype=torch.uint8,
+                            device=video.device,
+                        )
                 end_time = time.perf_counter()
                 time_per_chunk.append(end_time - start_time)
 
@@ -860,7 +869,8 @@ class ControlVideo2WorldInference:
                 video = self.model.decode(sample).cpu()
 
                 # Cache latents for next chunk
-                if chunk_id < num_chunks - 1 and sigma_max is not None:
+                # Note: Only cache if num_latent_conditional_frames > 0 (avoid -0: slice bug)
+                if chunk_id < num_chunks - 1 and sigma_max is not None and num_latent_conditional_frames > 0:
                     prev_latents_cache = sample[:, :, -num_latent_conditional_frames:, :, :].contiguous().clone()
 
                 # Accumulate control inputs
@@ -880,14 +890,22 @@ class ControlVideo2WorldInference:
 
                 # Prepare next chunk input
                 if chunk_id < num_chunks - 1:
-                    last_frames = video[:, :, -num_conditional_frames:, :, :]
-                    last_frames_uint8 = normalized_float_to_uint8(last_frames)
-                    blank_frames = torch.zeros(
-                        (1, 3, num_video_frames_per_chunk - num_conditional_frames, video.shape[-2], video.shape[-1]),
-                        dtype=torch.uint8,
-                        device=video.device,
-                    )
-                    prev_output = torch.cat([last_frames_uint8, blank_frames], dim=2)
+                    if num_conditional_frames > 0:
+                        last_frames = video[:, :, -num_conditional_frames:, :, :]
+                        last_frames_uint8 = normalized_float_to_uint8(last_frames)
+                        blank_frames = torch.zeros(
+                            (1, 3, num_video_frames_per_chunk - num_conditional_frames, video.shape[-2], video.shape[-1]),
+                            dtype=torch.uint8,
+                            device=video.device,
+                        )
+                        prev_output = torch.cat([last_frames_uint8, blank_frames], dim=2)
+                    else:
+                        # No conditional frames - use all blank frames (avoid -0: slice bug)
+                        prev_output = torch.zeros(
+                            (1, 3, num_video_frames_per_chunk, video.shape[-2], video.shape[-1]),
+                            dtype=torch.uint8,
+                            device=video.device,
+                        )
 
                 end_time = time.perf_counter()
                 time_per_chunk.append(end_time - start_time)
