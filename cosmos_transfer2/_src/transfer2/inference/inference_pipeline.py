@@ -91,6 +91,8 @@ class ControlVideo2WorldInference:
             exp_override_opts = []
         # no need to load base model separately at inference
         exp_override_opts.append("model.config.base_load_from=null")
+        # Enable torch.compile for the diffusion model (DiT net)
+        exp_override_opts.append("model.config.use_torch_compile=True")
         if not INTERNAL:
             exp_override_opts.append("~data_train")
         # Load the model and config. Each trained model's config is composed by
